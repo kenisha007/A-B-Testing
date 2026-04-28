@@ -1,0 +1,1199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ExperimentOS · A/B Testing Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600;700&display=swap"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:        #0a0c0f;
+  --bg2:       #0f1215;
+  --bg3:       #141820;
+  --border:    #1e2530;
+  --border2:   #252d3a;
+  --text:      #e2e8f0;
+  --text-dim:  #64748b;
+  --text-mute: #334155;
+  --green:     #00e5a0;
+  --green-dim: rgba(0,229,160,.12);
+  --amber:     #f59e0b;
+  --amber-dim: rgba(245,158,11,.12);
+  --red:       #f87171;
+  --red-dim:   rgba(248,113,113,.1);
+  --blue:      #38bdf8;
+  --blue-dim:  rgba(56,189,248,.1);
+  --purple:    #a78bfa;
+  --purple-dim:rgba(167,139,250,.1);
+  --mono:      'Space Mono', monospace;
+  --sans:      'DM Sans', sans-serif;
+  --radius:    8px;
+  --radius-lg: 14px;
+}
+
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--sans);
+  font-size:14px;
+  line-height:1.5;
+  min-height:100vh;
+  overflow-x:hidden;
+}
+
+/* ── noise grain overlay ── */
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events:none;z-index:9999;opacity:.4;
+}
+
+/* ── layout ── */
+.layout{display:grid;grid-template-columns:220px 1fr;min-height:100vh;}
+
+/* ── sidebar ── */
+.sidebar{
+  background:var(--bg2);
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;
+  padding:20px 0;position:sticky;top:0;height:100vh;
+}
+.logo{
+  padding:0 20px 20px;
+  border-bottom:1px solid var(--border);
+  margin-bottom:16px;
+}
+.logo-mark{
+  font-family:var(--mono);font-size:11px;letter-spacing:2px;
+  color:var(--green);text-transform:uppercase;
+}
+.logo-name{font-size:16px;font-weight:700;color:var(--text);margin-top:2px;}
+
+.nav{flex:1;}
+.nav-section{padding:0 12px;margin-bottom:8px;}
+.nav-label{
+  font-size:10px;letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--text-mute);padding:0 8px;margin-bottom:6px;font-family:var(--mono);
+}
+.nav-item{
+  display:flex;align-items:center;gap:10px;padding:8px;
+  border-radius:6px;cursor:pointer;color:var(--text-dim);
+  transition:all .15s;font-size:13px;font-weight:500;
+  border:1px solid transparent;
+}
+.nav-item:hover{background:var(--bg3);color:var(--text);}
+.nav-item.active{
+  background:var(--green-dim);color:var(--green);
+  border-color:rgba(0,229,160,.2);
+}
+.nav-icon{width:16px;height:16px;opacity:.8;}
+
+.sidebar-footer{
+  padding:16px 20px 0;
+  border-top:1px solid var(--border);
+  font-size:11px;color:var(--text-mute);font-family:var(--mono);
+}
+.live-dot{
+  display:inline-block;width:6px;height:6px;
+  background:var(--green);border-radius:50%;
+  animation:pulse 1.5s ease-in-out infinite;margin-right:6px;
+}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ── main content ── */
+.main{padding:28px 32px;overflow-y:auto;}
+
+.page{display:none;}
+.page.active{display:block;}
+
+/* ── top bar ── */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:28px;
+}
+.page-title{
+  font-size:22px;font-weight:700;
+  background:linear-gradient(135deg,var(--text) 0%,var(--text-dim) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:8px 16px;border-radius:6px;font-size:13px;
+  font-weight:600;cursor:pointer;border:none;transition:all .15s;
+  font-family:var(--sans);
+}
+.btn-primary{
+  background:var(--green);color:#0a0c0f;
+}
+.btn-primary:hover{background:#00ffb3;box-shadow:0 0 16px rgba(0,229,160,.3);}
+.btn-ghost{
+  background:transparent;color:var(--text-dim);
+  border:1px solid var(--border2);
+}
+.btn-ghost:hover{background:var(--bg3);color:var(--text);}
+.btn-danger{background:var(--red-dim);color:var(--red);border:1px solid rgba(248,113,113,.2);}
+.btn-sm{padding:5px 10px;font-size:12px;}
+
+/* ── metric cards ── */
+.metrics-grid{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:16px;
+  margin-bottom:24px;
+}
+.metric-card{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:var(--radius-lg);padding:18px;
+  position:relative;overflow:hidden;transition:border-color .2s;
+}
+.metric-card:hover{border-color:var(--border2);}
+.metric-card::after{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+}
+.metric-card.green::after{background:var(--green);}
+.metric-card.amber::after{background:var(--amber);}
+.metric-card.blue::after{background:var(--blue);}
+.metric-card.purple::after{background:var(--purple);}
+
+.metric-label{font-size:11px;color:var(--text-mute);text-transform:uppercase;letter-spacing:1px;font-family:var(--mono);}
+.metric-value{font-size:28px;font-weight:700;margin:6px 0 2px;font-family:var(--mono);}
+.metric-sub{font-size:12px;color:var(--text-dim);}
+.metric-card.green .metric-value{color:var(--green);}
+.metric-card.amber .metric-value{color:var(--amber);}
+.metric-card.blue  .metric-value{color:var(--blue);}
+.metric-card.purple .metric-value{color:var(--purple);}
+
+/* ── section grid ── */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:20px;}
+
+/* ── card ── */
+.card{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:var(--radius-lg);padding:20px;
+}
+.card-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:16px;
+}
+.card-title{
+  font-size:13px;font-weight:600;text-transform:uppercase;
+  letter-spacing:.8px;color:var(--text-dim);font-family:var(--mono);
+}
+
+/* ── stat rows ── */
+.stat-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 0;border-bottom:1px solid var(--border);
+}
+.stat-row:last-child{border-bottom:none;}
+.stat-key{color:var(--text-dim);font-size:12px;}
+.stat-val{
+  font-family:var(--mono);font-size:13px;
+  font-weight:700;color:var(--text);
+}
+.stat-val.green{color:var(--green);}
+.stat-val.amber{color:var(--amber);}
+.stat-val.red{color:var(--red);}
+.stat-val.blue{color:var(--blue);}
+
+/* ── probability bar ── */
+.prob-bar-wrap{margin:14px 0;}
+.prob-bar-label{
+  display:flex;justify-content:space-between;
+  font-size:12px;color:var(--text-dim);margin-bottom:6px;
+}
+.prob-bar-track{
+  height:8px;background:var(--bg3);border-radius:4px;
+  overflow:hidden;position:relative;
+}
+.prob-bar-fill{
+  height:100%;border-radius:4px;
+  transition:width 1s cubic-bezier(.4,0,.2,1);
+}
+.prob-bar-fill.green{background:linear-gradient(90deg,#00e5a0,#00ffb3);}
+.prob-bar-fill.blue{background:linear-gradient(90deg,#38bdf8,#7dd3fc);}
+
+/* ── confidence badge ── */
+.badge{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;
+  font-family:var(--mono);text-transform:uppercase;letter-spacing:.5px;
+}
+.badge-green{background:var(--green-dim);color:var(--green);border:1px solid rgba(0,229,160,.25);}
+.badge-amber{background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,.25);}
+.badge-red{background:var(--red-dim);color:var(--red);border:1px solid rgba(248,113,113,.2);}
+.badge-blue{background:var(--blue-dim);color:var(--blue);border:1px solid rgba(56,189,248,.2);}
+.badge-purple{background:var(--purple-dim);color:var(--purple);border:1px solid rgba(167,139,250,.2);}
+
+/* ── recommendation banner ── */
+.reco-banner{
+  border-radius:var(--radius-lg);padding:20px 24px;
+  display:flex;align-items:flex-start;gap:16px;margin-bottom:20px;
+}
+.reco-banner.ship{background:var(--green-dim);border:1px solid rgba(0,229,160,.25);}
+.reco-banner.continue{background:var(--amber-dim);border:1px solid rgba(245,158,11,.25);}
+.reco-banner.null{background:var(--blue-dim);border:1px solid rgba(56,189,248,.2);}
+.reco-icon{font-size:24px;flex-shrink:0;}
+.reco-title{font-weight:700;font-size:15px;margin-bottom:3px;}
+.reco-desc{font-size:13px;color:var(--text-dim);}
+
+/* ── variant comparison table ── */
+.variant-table{width:100%;border-collapse:collapse;}
+.variant-table th{
+  font-size:11px;text-transform:uppercase;letter-spacing:.8px;
+  color:var(--text-mute);font-family:var(--mono);font-weight:400;
+  padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);
+}
+.variant-table td{
+  padding:12px;border-bottom:1px solid var(--border);font-size:13px;
+}
+.variant-table tr:last-child td{border-bottom:none;}
+.variant-table tr:hover td{background:var(--bg3);}
+
+/* ── experiment list ── */
+.exp-list{display:flex;flex-direction:column;gap:12px;}
+.exp-item{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:var(--radius-lg);padding:18px 20px;
+  display:flex;align-items:center;justify-content:space-between;
+  cursor:pointer;transition:border-color .15s,background .15s;
+}
+.exp-item:hover{border-color:var(--green);background:rgba(0,229,160,.02);}
+.exp-info{flex:1;}
+.exp-name{font-weight:600;font-size:14px;margin-bottom:3px;}
+.exp-meta{font-size:12px;color:var(--text-dim);}
+.exp-right{display:flex;align-items:center;gap:12px;}
+.status-dot{width:8px;height:8px;border-radius:50%;}
+.status-running{background:var(--green);box-shadow:0 0 8px var(--green);}
+.status-draft{background:var(--text-mute);}
+.status-concluded{background:var(--blue);}
+.status-paused{background:var(--amber);}
+
+/* ── form ── */
+.form-group{margin-bottom:16px;}
+.form-label{
+  display:block;font-size:12px;font-weight:600;
+  color:var(--text-dim);margin-bottom:6px;text-transform:uppercase;
+  letter-spacing:.5px;font-family:var(--mono);
+}
+.form-input{
+  width:100%;background:var(--bg3);border:1px solid var(--border2);
+  border-radius:6px;padding:10px 12px;color:var(--text);
+  font-family:var(--sans);font-size:13px;outline:none;
+  transition:border-color .15s;
+}
+.form-input:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(0,229,160,.1);}
+.form-input::placeholder{color:var(--text-mute);}
+select.form-input option{background:var(--bg2);}
+
+/* ── modal ── */
+.modal-overlay{
+  display:none;position:fixed;inset:0;
+  background:rgba(0,0,0,.6);backdrop-filter:blur(4px);
+  z-index:1000;align-items:center;justify-content:center;
+}
+.modal-overlay.open{display:flex;}
+.modal{
+  background:var(--bg2);border:1px solid var(--border2);
+  border-radius:var(--radius-lg);padding:28px;width:520px;
+  max-height:80vh;overflow-y:auto;
+  animation:modal-in .2s cubic-bezier(.4,0,.2,1);
+}
+@keyframes modal-in{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+.modal-title{font-size:18px;font-weight:700;margin-bottom:20px;}
+
+/* ── code mono ── */
+.mono{font-family:var(--mono);font-size:12px;}
+
+/* ── chart container ── */
+.chart-wrap{position:relative;height:220px;}
+
+/* ── thompson viz ── */
+.posterior-viz{margin-top:12px;}
+.arm-row{margin-bottom:12px;}
+.arm-name{font-size:12px;font-family:var(--mono);color:var(--text-dim);margin-bottom:4px;}
+.arm-bar-track{height:24px;background:var(--bg3);border-radius:4px;overflow:hidden;position:relative;}
+.arm-bar-fill{height:100%;border-radius:4px;display:flex;align-items:center;padding-left:10px;font-size:11px;font-weight:700;font-family:var(--mono);transition:width 1s;}
+.arm-fill-a{background:linear-gradient(90deg,rgba(56,189,248,.3),rgba(56,189,248,.5));}
+.arm-fill-b{background:linear-gradient(90deg,rgba(0,229,160,.3),rgba(0,229,160,.5));}
+.arm-stats{display:flex;gap:16px;margin-top:4px;font-size:11px;color:var(--text-mute);font-family:var(--mono);}
+
+/* ── sequential test viz ── */
+.seq-track{
+  height:4px;background:var(--bg3);border-radius:2px;
+  position:relative;margin:16px 0 8px;
+}
+.seq-fill{height:4px;border-radius:2px;transition:width .8s;}
+.seq-boundary-line{
+  position:absolute;top:-6px;height:16px;width:2px;
+  background:var(--amber);border-radius:1px;
+}
+.seq-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--text-mute);font-family:var(--mono);}
+
+/* ── loading skeleton ── */
+.skeleton{
+  background:linear-gradient(90deg,var(--bg3) 25%,var(--border) 50%,var(--bg3) 75%);
+  background-size:200% 100%;animation:shimmer 1.5s infinite;
+  border-radius:4px;
+}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* ── toast ── */
+.toast-container{
+  position:fixed;bottom:24px;right:24px;
+  display:flex;flex-direction:column;gap:8px;z-index:9000;
+}
+.toast{
+  background:var(--bg2);border:1px solid var(--border2);
+  border-radius:8px;padding:12px 16px;font-size:13px;
+  min-width:260px;display:flex;align-items:center;gap:10px;
+  animation:toast-in .2s ease;box-shadow:0 8px 24px rgba(0,0,0,.4);
+}
+.toast.success{border-left:3px solid var(--green);}
+.toast.error{border-left:3px solid var(--red);}
+.toast.info{border-left:3px solid var(--blue);}
+@keyframes toast-in{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- ══ SIDEBAR ══ -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-mark">ExperimentOS</div>
+    <div class="logo-name">A/B Platform</div>
+  </div>
+  <nav class="nav">
+    <div class="nav-section">
+      <div class="nav-label">Main</div>
+      <div class="nav-item active" onclick="showPage('overview')">
+        <svg class="nav-icon" fill="none" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
+        Overview
+      </div>
+      <div class="nav-item" onclick="showPage('experiments')">
+        <svg class="nav-icon" fill="none" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h8M2 12h5"/></svg>
+        Experiments
+      </div>
+      <div class="nav-item" onclick="showPage('results')">
+        <svg class="nav-icon" fill="none" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.5"><polyline points="1,12 5,7 9,9 15,2"/></svg>
+        Results &amp; Stats
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">Tools</div>
+      <div class="nav-item" onclick="showPage('simulator')">
+        <svg class="nav-icon" fill="none" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>
+        Simulator
+      </div>
+      <div class="nav-item" onclick="window.open('/docs','_blank')">
+        <svg class="nav-icon" fill="none" viewBox="0 0 16 16" stroke="currentColor" stroke-width="1.5"><rect x="2" y="1" width="12" height="14" rx="1"/><path d="M5 5h6M5 8h6M5 11h4"/></svg>
+        API Docs ↗
+      </div>
+    </div>
+  </nav>
+  <div class="sidebar-footer">
+    <span class="live-dot"></span>LIVE · v2.0.0
+  </div>
+</aside>
+
+<!-- ══ MAIN ══ -->
+<main class="main">
+
+  <!-- ── PAGE: OVERVIEW ── -->
+  <div class="page active" id="page-overview">
+    <div class="topbar">
+      <div class="page-title">Overview</div>
+      <button class="btn btn-primary" onclick="openCreateModal()">
+        <svg width="14" height="14" fill="none" viewBox="0 0 14 14" stroke="currentColor" stroke-width="2"><path d="M7 1v12M1 7h12"/></svg>
+        New Experiment
+      </button>
+    </div>
+
+    <div class="metrics-grid">
+      <div class="metric-card green">
+        <div class="metric-label">Active Experiments</div>
+        <div class="metric-value" id="m-active">—</div>
+        <div class="metric-sub">currently running</div>
+      </div>
+      <div class="metric-card amber">
+        <div class="metric-label">Total Assignments</div>
+        <div class="metric-value" id="m-assignments">—</div>
+        <div class="metric-sub">users assigned</div>
+      </div>
+      <div class="metric-card blue">
+        <div class="metric-label">Avg Conversion</div>
+        <div class="metric-value" id="m-cvr">—</div>
+        <div class="metric-sub">across all variants</div>
+      </div>
+      <div class="metric-card purple">
+        <div class="metric-label">Concluded</div>
+        <div class="metric-value" id="m-concluded">—</div>
+        <div class="metric-sub">experiments</div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Recent Experiments</span>
+          <button class="btn btn-ghost btn-sm" onclick="showPage('experiments')">View all →</button>
+        </div>
+        <div id="recent-exp-list" class="exp-list">
+          <div class="skeleton" style="height:60px;border-radius:10px;"></div>
+          <div class="skeleton" style="height:60px;border-radius:10px;margin-top:10px;"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Thompson Allocation</span>
+          <span class="badge badge-green">Live</span>
+        </div>
+        <p style="font-size:12px;color:var(--text-dim);margin-bottom:14px;">
+          Real-time traffic routing based on Beta posterior means. Updated after each conversion event.
+        </p>
+        <div id="allocation-viz" class="posterior-viz">
+          <div class="skeleton" style="height:90px;border-radius:6px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">How It Works</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
+        <div style="text-align:center;padding:16px;">
+          <div style="font-size:28px;margin-bottom:8px;">🎲</div>
+          <div style="font-weight:600;font-size:13px;margin-bottom:4px;">Thompson Sampling</div>
+          <div style="font-size:12px;color:var(--text-dim)">Draw θ̃ᵢ ~ Beta(αᵢ,βᵢ) for each arm, route to argmax. Naturally balances explore vs exploit.</div>
+        </div>
+        <div style="text-align:center;padding:16px;">
+          <div style="font-size:28px;margin-bottom:8px;">📊</div>
+          <div style="font-weight:600;font-size:13px;margin-bottom:4px;">Bayesian Analysis</div>
+          <div style="font-size:12px;color:var(--text-dim)">Compute P(treatment > control), expected loss, and 95% credible intervals from posteriors.</div>
+        </div>
+        <div style="text-align:center;padding:16px;">
+          <div style="font-size:28px;margin-bottom:8px;">⚡</div>
+          <div style="font-weight:600;font-size:13px;margin-bottom:4px;">Sequential Testing</div>
+          <div style="font-size:12px;color:var(--text-dim)">Pocock α-spending controls FWER across multiple interim peeks. ROPE stops wasted trials.</div>
+        </div>
+        <div style="text-align:center;padding:16px;">
+          <div style="font-size:28px;margin-bottom:8px;">🚀</div>
+          <div style="font-weight:600;font-size:13px;margin-bottom:4px;">Ship Decision</div>
+          <div style="font-size:12px;color:var(--text-dim)">Holistic recommendation: frequentist + Bayesian agreement → high-confidence ship decision.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PAGE: EXPERIMENTS ── -->
+  <div class="page" id="page-experiments">
+    <div class="topbar">
+      <div class="page-title">Experiments</div>
+      <div style="display:flex;gap:10px;">
+        <select class="form-input" style="width:140px;padding:7px 10px;" id="filter-status" onchange="loadExperiments()">
+          <option value="">All Status</option>
+          <option value="running">Running</option>
+          <option value="draft">Draft</option>
+          <option value="concluded">Concluded</option>
+        </select>
+        <button class="btn btn-primary" onclick="openCreateModal()">+ New Experiment</button>
+      </div>
+    </div>
+    <div id="exp-list-page" class="exp-list">
+      <div class="skeleton" style="height:72px;border-radius:12px;"></div>
+      <div class="skeleton" style="height:72px;border-radius:12px;margin-top:12px;"></div>
+      <div class="skeleton" style="height:72px;border-radius:12px;margin-top:12px;"></div>
+    </div>
+  </div>
+
+  <!-- ── PAGE: RESULTS ── -->
+  <div class="page" id="page-results">
+    <div class="topbar">
+      <div class="page-title">Results &amp; Statistics</div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <select class="form-input" style="width:260px;padding:7px 10px;" id="results-exp-select" onchange="loadResults()">
+          <option value="">Select an experiment…</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="loadResults()" title="Refresh">↻ Refresh</button>
+      </div>
+    </div>
+    <div id="results-container">
+      <div style="text-align:center;padding:60px;color:var(--text-mute);">
+        <div style="font-size:40px;margin-bottom:12px;">🔬</div>
+        <div style="font-size:14px;">Select an experiment above to view statistical analysis</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PAGE: SIMULATOR ── -->
+  <div class="page" id="page-simulator">
+    <div class="topbar">
+      <div class="page-title">Thompson Sampling Simulator</div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header"><span class="card-title">Simulation Parameters</span></div>
+        <div class="form-group">
+          <label class="form-label">True Conversion Rate — Control (%)</label>
+          <input class="form-input" type="range" min="1" max="50" value="10" id="sim-p-control" oninput="document.getElementById('sim-p-control-val').textContent=this.value+'%'"/>
+          <div style="font-family:var(--mono);font-size:12px;color:var(--green);margin-top:4px;" id="sim-p-control-val">10%</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">True Conversion Rate — Treatment (%)</label>
+          <input class="form-input" type="range" min="1" max="50" value="13" id="sim-p-treatment" oninput="document.getElementById('sim-p-treatment-val').textContent=this.value+'%'"/>
+          <div style="font-family:var(--mono);font-size:12px;color:var(--blue);margin-top:4px;" id="sim-p-treatment-val">13%</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Number of Users</label>
+          <input class="form-input" type="number" value="2000" id="sim-n" min="100" max="50000"/>
+        </div>
+        <button class="btn btn-primary" style="width:100%" onclick="runSimulation()">▶ Run Simulation</button>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Posterior Evolution</span></div>
+        <div class="chart-wrap">
+          <canvas id="sim-chart"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="grid-3" id="sim-results" style="display:none">
+      <div class="card">
+        <div class="card-header"><span class="card-title">Final Allocations</span></div>
+        <div id="sim-allocation"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Posterior Stats</span></div>
+        <div id="sim-posteriors"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Decision</span></div>
+        <div id="sim-decision"></div>
+      </div>
+    </div>
+  </div>
+
+</main><!-- /.main -->
+</div><!-- /.layout -->
+
+<!-- ══ MODAL: CREATE EXPERIMENT ══ -->
+<div class="modal-overlay" id="create-modal">
+  <div class="modal">
+    <div class="modal-title">New Experiment</div>
+    <div class="form-group">
+      <label class="form-label">Experiment Name</label>
+      <input class="form-input" id="new-exp-name" placeholder="e.g. checkout_cta_color_q3"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Hypothesis / Goal</label>
+      <input class="form-input" id="new-exp-desc" placeholder="Green CTA will increase checkout CVR by 5%"/>
+    </div>
+    <div class="grid-2" style="margin-bottom:0;">
+      <div class="form-group">
+        <label class="form-label">Control Variant Name</label>
+        <input class="form-input" id="new-control-name" value="Control" placeholder="Control"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Treatment Variant Name</label>
+        <input class="form-input" id="new-treatment-name" value="Treatment" placeholder="Treatment"/>
+      </div>
+    </div>
+    <div class="grid-2" style="margin-bottom:0;">
+      <div class="form-group">
+        <label class="form-label">Strategy</label>
+        <select class="form-input" id="new-strategy">
+          <option value="thompson">Thompson Sampling</option>
+          <option value="equal">Equal Split (Classic A/B)</option>
+          <option value="epsilon_greedy">ε-Greedy</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Target Sample Size</label>
+        <input class="form-input" type="number" id="new-sample-size" value="1000"/>
+      </div>
+    </div>
+    <div class="grid-2" style="margin-bottom:16px;">
+      <div class="form-group">
+        <label class="form-label">Significance Level (α)</label>
+        <select class="form-input" id="new-alpha">
+          <option value="0.05">0.05 (standard)</option>
+          <option value="0.01">0.01 (strict)</option>
+          <option value="0.10">0.10 (relaxed)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Total Peeks (Sequential)</label>
+        <input class="form-input" type="number" id="new-peeks" value="5" min="1" max="10"/>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="closeCreateModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="createExperiment()">Create Experiment</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TOASTS ══ -->
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// API helpers
+// ══════════════════════════════════════════════════════════
+const API = '/api/v1';
+
+async function apiFetch(path, opts = {}) {
+  const res = await fetch(API + path, {
+    headers: { 'Content-Type': 'application/json', ...opts.headers },
+    ...opts,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'API error');
+  }
+  return res.json();
+}
+
+// ══════════════════════════════════════════════════════════
+// Navigation
+// ══════════════════════════════════════════════════════════
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + name)?.classList.add('active');
+  event?.currentTarget?.classList.add('active');
+
+  if (name === 'overview')     loadOverview();
+  if (name === 'experiments')  loadExperiments();
+  if (name === 'results')      loadResultsExpList();
+  if (name === 'simulator')    initSimulator();
+}
+
+// ══════════════════════════════════════════════════════════
+// Overview
+// ══════════════════════════════════════════════════════════
+async function loadOverview() {
+  try {
+    const data = await apiFetch('/experiments?per_page=100');
+    const items = data.items || [];
+    const running = items.filter(e => e.status === 'running').length;
+    const concluded = items.filter(e => e.status === 'concluded').length;
+
+    document.getElementById('m-active').textContent = running;
+    document.getElementById('m-concluded').textContent = concluded;
+
+    // Recent experiments (first 3)
+    const el = document.getElementById('recent-exp-list');
+    if (items.length === 0) {
+      el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-mute);font-size:13px;">No experiments yet. Create one above!</div>';
+    } else {
+      el.innerHTML = items.slice(0, 3).map(expItemHTML).join('');
+    }
+
+    // Allocation viz (first running experiment)
+    const running_exp = items.find(e => e.status === 'running');
+    const allocEl = document.getElementById('allocation-viz');
+    if (running_exp && running_exp.bandit_state) {
+      const state = running_exp.bandit_state;
+      const variants = running_exp.variants;
+      let html = '';
+      variants.forEach((v, i) => {
+        const s = state[v.variant_id] || {alpha:1,beta:1};
+        const mean = (s.alpha / (s.alpha + s.beta) * 100).toFixed(1);
+        const n = s.alpha + s.beta - 2;
+        const cls = i === 0 ? 'arm-fill-a' : 'arm-fill-b';
+        html += `<div class="arm-row">
+          <div class="arm-name">${v.name}</div>
+          <div class="arm-bar-track">
+            <div class="arm-bar-fill ${cls}" style="width:${mean}%;color:var(--text)">${mean}%</div>
+          </div>
+          <div class="arm-stats">
+            <span>α=${s.alpha.toFixed(0)}</span><span>β=${s.beta.toFixed(0)}</span><span>n≈${Math.round(n)}</span>
+          </div>
+        </div>`;
+      });
+      allocEl.innerHTML = html;
+    } else {
+      allocEl.innerHTML = '<div style="color:var(--text-mute);font-size:12px;text-align:center;padding:20px;">Start an experiment to see live allocation</div>';
+    }
+
+    // Metrics
+    let totalAssign = 0, totalConv = 0;
+    for (const exp of items.slice(0, 5)) {
+      try {
+        const r = await apiFetch(`/experiments/${exp.experiment_id}/results`);
+        totalAssign += r.total_assignments || 0;
+        totalConv   += r.total_conversions  || 0;
+      } catch {}
+    }
+    document.getElementById('m-assignments').textContent = totalAssign.toLocaleString();
+    const avgCvr = totalAssign > 0 ? (totalConv / totalAssign * 100).toFixed(1) + '%' : '—';
+    document.getElementById('m-cvr').textContent = avgCvr;
+
+  } catch(e) {
+    toast('Failed to load overview: ' + e.message, 'error');
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// Experiments List
+// ══════════════════════════════════════════════════════════
+function expItemHTML(exp) {
+  const statusClass = { running:'status-running', draft:'status-draft', concluded:'status-concluded', paused:'status-paused' }[exp.status] || '';
+  const created = new Date(exp.created_at).toLocaleDateString();
+  return `<div class="exp-item" onclick="openExpDetail('${exp.experiment_id}')">
+    <div class="exp-info">
+      <div class="exp-name">${exp.name}</div>
+      <div class="exp-meta">${exp.variants.map(v=>v.name).join(' vs ')} · ${exp.strategy} · created ${created}</div>
+    </div>
+    <div class="exp-right">
+      <span class="badge ${statusBadge(exp.status)}">${exp.status}</span>
+      ${exp.status === 'draft' ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();startExperiment('${exp.experiment_id}')">▶ Start</button>` : ''}
+      ${exp.status === 'running' ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();concludeExperiment('${exp.experiment_id}')">■ Conclude</button>` : ''}
+    </div>
+  </div>`;
+}
+
+function statusBadge(s) {
+  return { running:'badge-green', draft:'badge-amber', concluded:'badge-blue', paused:'badge-purple' }[s] || 'badge-amber';
+}
+
+async function loadExperiments() {
+  const el = document.getElementById('exp-list-page');
+  const filter = document.getElementById('filter-status')?.value;
+  el.innerHTML = '<div class="skeleton" style="height:72px;border-radius:12px;"></div><div class="skeleton" style="height:72px;border-radius:12px;margin-top:12px;"></div>';
+  try {
+    const qs = filter ? `?status=${filter}` : '';
+    const data = await apiFetch('/experiments' + qs + (filter ? '&' : '?') + 'per_page=50');
+    const items = data.items || [];
+    if (!items.length) {
+      el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-mute);font-size:13px;">No experiments found. Create your first one!</div>';
+    } else {
+      el.innerHTML = items.map(expItemHTML).join('');
+    }
+  } catch(e) {
+    el.innerHTML = `<div style="color:var(--red);padding:20px;">${e.message}</div>`;
+  }
+}
+
+async function startExperiment(id) {
+  try {
+    await apiFetch(`/experiments/${id}/start`, { method:'PATCH' });
+    toast('Experiment started! 🚀', 'success');
+    loadExperiments();
+    loadOverview();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function concludeExperiment(id) {
+  if (!confirm('Conclude this experiment? This cannot be undone.')) return;
+  try {
+    await apiFetch(`/experiments/${id}/conclude`, { method:'PATCH' });
+    toast('Experiment concluded', 'info');
+    loadExperiments();
+    loadOverview();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+function openExpDetail(id) {
+  // Navigate to results for this experiment
+  showPage('results');
+  document.querySelector('.nav-item[onclick*="results"]').classList.add('active');
+  document.querySelector('.nav-item[onclick*="experiments"]').classList.remove('active');
+  setTimeout(() => {
+    const sel = document.getElementById('results-exp-select');
+    sel.value = id;
+    loadResults();
+  }, 100);
+}
+
+// ══════════════════════════════════════════════════════════
+// Results
+// ══════════════════════════════════════════════════════════
+async function loadResultsExpList() {
+  try {
+    const data = await apiFetch('/experiments?per_page=100');
+    const sel = document.getElementById('results-exp-select');
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">Select an experiment…</option>' +
+      (data.items || []).map(e => `<option value="${e.experiment_id}">${e.name} (${e.status})</option>`).join('');
+    if (cur) { sel.value = cur; loadResults(); }
+  } catch {}
+}
+
+async function loadResults() {
+  const id = document.getElementById('results-exp-select').value;
+  const el = document.getElementById('results-container');
+  if (!id) return;
+
+  el.innerHTML = '<div class="skeleton" style="height:200px;border-radius:12px;"></div>';
+  try {
+    const r = await apiFetch(`/experiments/${id}/results`);
+    el.innerHTML = renderResults(r);
+    renderResultChart(r);
+  } catch(e) {
+    el.innerHTML = `<div class="card" style="color:var(--red);">${e.message}</div>`;
+  }
+}
+
+function renderResults(r) {
+  const recoConfig = {
+    ship_treatment: { cls:'ship', icon:'🚀', title:'Ship Treatment', desc: `Treatment shows statistically significant improvement. ${r.confidence_level === 'high' ? 'High confidence — safe to ship.' : 'Medium confidence — consider more data.'}` },
+    ship_control:   { cls:'ship', icon:'✅', title:'Keep Control', desc:'Control is performing better. Reject the treatment variant.' },
+    continue:       { cls:'continue', icon:'⏳', title:'Continue Collecting Data', desc:'Not enough evidence yet. Continue the experiment.' },
+    stop_null:      { cls:'null', icon:'🎯', title:'Stop — Practical Null', desc:'Expected loss is below the ROPE threshold. No meaningful difference exists.' },
+    needs_more_data:{ cls:'continue', icon:'📊', title:'Needs More Data', desc:`Minimum 100 samples per variant required. Collected so far: ${r.variants.map(v=>v.trials).join(', ')}.` },
+  };
+  const reco = recoConfig[r.recommendation] || recoConfig.continue;
+
+  let html = `
+  <div class="reco-banner ${reco.cls}">
+    <div class="reco-icon">${reco.icon}</div>
+    <div>
+      <div class="reco-title">${reco.title}</div>
+      <div class="reco-desc">${reco.desc}</div>
+    </div>
+  </div>
+
+  <div class="metrics-grid" style="grid-template-columns:repeat(3,1fr);">
+    <div class="metric-card blue">
+      <div class="metric-label">Total Assignments</div>
+      <div class="metric-value">${r.total_assignments.toLocaleString()}</div>
+      <div class="metric-sub">${r.variants.map(v=>v.trials+' '+v.name).join(' · ')}</div>
+    </div>
+    <div class="metric-card green">
+      <div class="metric-label">Total Conversions</div>
+      <div class="metric-value">${r.total_conversions.toLocaleString()}</div>
+      <div class="metric-sub">${r.variants.map(v=>v.conversions+' '+v.name).join(' · ')}</div>
+    </div>
+    <div class="metric-card amber">
+      <div class="metric-label">Confidence</div>
+      <div class="metric-value">${r.confidence_level.toUpperCase()}</div>
+      <div class="metric-sub">${r.status}</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header"><span class="card-title">Variant Performance</span></div>
+      <table class="variant-table">
+        <thead><tr>
+          <th>Variant</th><th>Trials</th><th>CVR</th><th>95% CI</th><th>P(Best)</th>
+        </tr></thead>
+        <tbody>
+          ${r.variants.map((v,i) => `<tr>
+            <td><span class="badge ${i===0?'badge-blue':'badge-green'}">${v.name}</span></td>
+            <td class="mono">${v.trials.toLocaleString()}</td>
+            <td class="mono" style="font-weight:700;">${(v.conversion_rate*100).toFixed(2)}%</td>
+            <td class="mono" style="color:var(--text-dim)">[${(v.conversion_rate_ci_lower*100).toFixed(1)}, ${(v.conversion_rate_ci_upper*100).toFixed(1)}]</td>
+            <td><span class="badge ${v.prob_best > 0.8 ? 'badge-green':'badge-amber'}">${(v.prob_best*100).toFixed(1)}%</span></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">Conversion Rate Chart</span></div>
+      <div class="chart-wrap"><canvas id="results-chart"></canvas></div>
+    </div>
+  </div>`;
+
+  if (r.frequentist) {
+    const f = r.frequentist;
+    html += `<div class="grid-2">
+    <div class="card">
+      <div class="card-header"><span class="card-title">Frequentist Analysis</span></div>
+      ${statRow('p-value', f.p_value < 0.001 ? '<0.001' : f.p_value.toFixed(4), f.p_value < 0.05 ? 'green' : 'amber')}
+      ${statRow('z-statistic', f.z_statistic.toFixed(3), '')}
+      ${statRow('Absolute Lift', (f.absolute_lift*100).toFixed(2)+'%', f.absolute_lift > 0 ? 'green':'red')}
+      ${statRow('Relative Lift', (f.relative_lift*100).toFixed(1)+'%', f.relative_lift > 0 ? 'green':'red')}
+      ${statRow('95% CI on Lift', `[${(f.ci_lower*100).toFixed(2)}%, ${(f.ci_upper*100).toFixed(2)}%]`, '')}
+      ${statRow("Cohen's h", f.cohens_h.toFixed(3), '')}
+      ${statRow('Observed Power', (f.observed_power*100).toFixed(1)+'%', f.observed_power > 0.8 ? 'green':'amber')}
+      ${statRow('Significant?', f.is_significant ? 'YES ✓' : 'NO ✗', f.is_significant ? 'green':'amber')}
+    </div>`;
+
+    if (r.bayesian) {
+      const b = r.bayesian;
+      html += `<div class="card">
+        <div class="card-header"><span class="card-title">Bayesian Analysis</span></div>
+        <div class="prob-bar-wrap">
+          <div class="prob-bar-label">
+            <span>Control <span class="mono">${(b.ci_control[0]*100).toFixed(1)}–${(b.ci_control[1]*100).toFixed(1)}%</span></span>
+            <span style="color:var(--blue)">${((1-b.prob_treatment_better)*100).toFixed(1)}%</span>
+          </div>
+          <div class="prob-bar-track">
+            <div class="prob-bar-fill blue" style="width:${((1-b.prob_treatment_better)*100).toFixed(1)}%"></div>
+          </div>
+        </div>
+        <div class="prob-bar-wrap">
+          <div class="prob-bar-label">
+            <span>Treatment <span class="mono">${(b.ci_treatment[0]*100).toFixed(1)}–${(b.ci_treatment[1]*100).toFixed(1)}%</span></span>
+            <span style="color:var(--green)">${(b.prob_treatment_better*100).toFixed(1)}%</span>
+          </div>
+          <div class="prob-bar-track">
+            <div class="prob-bar-fill green" style="width:${(b.prob_treatment_better*100).toFixed(1)}%"></div>
+          </div>
+        </div>
+        ${statRow('P(Treatment > Control)', (b.prob_treatment_better*100).toFixed(1)+'%', b.prob_treatment_better > 0.95 ? 'green' : b.prob_treatment_better > 0.8 ? 'amber':'red')}
+        ${statRow('E[Loss | Choose Control]', (b.expected_loss_control*100).toFixed(3)+'%', '')}
+        ${statRow('E[Loss | Choose Treatment]', (b.expected_loss_treatment*100).toFixed(3)+'%', '')}
+        ${statRow('Bayes Factor', b.bayes_factor.toFixed(2), b.bayes_factor > 3 ? 'green':'')}
+      </div></div>`;
+    } else { html += '</div>'; }
+  }
+
+  if (r.sequential) {
+    const s = r.sequential;
+    const pct = Math.min(s.current_p_value / s.alpha_boundary * 100, 100);
+    html += `<div class="card">
+      <div class="card-header">
+        <span class="card-title">Sequential Testing — Pocock α-Spending</span>
+        <span class="badge ${s.can_stop_early ? 'badge-green':'badge-amber'}">${s.rope_decision.replace('_',' ')}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px;">
+        <div>${statRow('Current peek', s.peek_number+' / '+s.total_peeks_planned, '')}</div>
+        <div>${statRow('Pocock boundary', s.alpha_boundary.toFixed(4), '')}</div>
+        <div>${statRow('Current p-value', s.current_p_value.toFixed(4), s.current_p_value < s.alpha_boundary ? 'green':'amber')}</div>
+      </div>
+      <div class="seq-track">
+        <div class="seq-fill" style="width:${pct}%;background:${pct >= 100 ? 'var(--green)':'var(--amber)'}"></div>
+        <div class="seq-boundary-line" style="left:${Math.min(s.alpha_boundary/0.05*20,95)}%"></div>
+      </div>
+      <div class="seq-labels">
+        <span>p=0</span>
+        <span style="color:var(--amber)">boundary=${s.alpha_boundary.toFixed(4)}</span>
+        <span>p=0.05</span>
+      </div>
+      <p style="font-size:12px;color:var(--text-dim);margin-top:8px;">
+        ${s.can_stop_early
+          ? '✅ You can stop this experiment early — the stopping boundary has been crossed.'
+          : '⏳ Continue collecting data. The current evidence does not cross the Pocock boundary for peek ' + s.peek_number + '.'}
+      </p>
+    </div>`;
+  }
+
+  return html;
+}
+
+function statRow(key, val, cls) {
+  return `<div class="stat-row"><span class="stat-key">${key}</span><span class="stat-val ${cls}">${val}</span></div>`;
+}
+
+function renderResultChart(r) {
+  const ctx = document.getElementById('results-chart');
+  if (!ctx) return;
+  if (window._resultsChart) window._resultsChart.destroy();
+
+  const colors = ['rgba(56,189,248,0.8)', 'rgba(0,229,160,0.8)'];
+  window._resultsChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: r.variants.map(v => v.name),
+      datasets: [{
+        label: 'Conversion Rate',
+        data: r.variants.map(v => +(v.conversion_rate * 100).toFixed(3)),
+        backgroundColor: colors,
+        borderColor: colors.map(c => c.replace('0.8','1')),
+        borderWidth: 1,
+        borderRadius: 6,
+        errorBars: r.variants.reduce((acc, v) => {
+          acc[v.name] = {
+            plus:  (v.conversion_rate_ci_upper - v.conversion_rate) * 100,
+            minus: (v.conversion_rate - v.conversion_rate_ci_lower) * 100,
+          };
+          return acc;
+        }, {}),
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { color: '#64748b', callback: v => v + '%' },
+          grid: { color: '#1e2530' },
+        },
+        x: { ticks: { color: '#64748b' }, grid: { display: false } }
+      }
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// Create modal
+// ══════════════════════════════════════════════════════════
+function openCreateModal() {
+  document.getElementById('create-modal').classList.add('open');
+}
+function closeCreateModal() {
+  document.getElementById('create-modal').classList.remove('open');
+}
+
+async function createExperiment() {
+  const name = document.getElementById('new-exp-name').value.trim();
+  if (!name) { toast('Experiment name is required', 'error'); return; }
+
+  const controlName   = document.getElementById('new-control-name').value.trim() || 'Control';
+  const treatmentName = document.getElementById('new-treatment-name').value.trim() || 'Treatment';
+
+  const payload = {
+    name,
+    description: document.getElementById('new-exp-desc').value.trim(),
+    variants: [
+      { variant_id: 'control',   name: controlName,   description: 'Control variant' },
+      { variant_id: 'treatment', name: treatmentName, description: 'Treatment variant' },
+    ],
+    strategy: document.getElementById('new-strategy').value,
+    target_sample_size: parseInt(document.getElementById('new-sample-size').value) || 1000,
+    alpha: parseFloat(document.getElementById('new-alpha').value) || 0.05,
+    total_peeks: parseInt(document.getElementById('new-peeks').value) || 5,
+    min_detectable_effect: 0.05,
+  };
+
+  try {
+    const exp = await apiFetch('/experiments', { method:'POST', body: JSON.stringify(payload) });
+    closeCreateModal();
+    toast(`Experiment "${exp.name}" created! 🎉`, 'success');
+    loadExperiments();
+    loadOverview();
+  } catch(e) {
+    toast('Create failed: ' + e.message, 'error');
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// Simulator (Thompson Sampling in pure JS)
+// ══════════════════════════════════════════════════════════
+let simChart = null;
+
+function initSimulator() {
+  if (!document.getElementById('sim-chart')) return;
+}
+
+function betaSample(alpha, beta) {
+  // Johnk's method for Beta sampling
+  let x, y;
+  do {
+    x = Math.pow(Math.random(), 1/alpha);
+    y = Math.pow(Math.random(), 1/beta);
+  } while (x + y > 1);
+  return x / (x + y);
+}
+
+function runSimulation() {
+  const pControl   = parseFloat(document.getElementById('sim-p-control').value) / 100;
+  const pTreatment = parseFloat(document.getElementById('sim-p-treatment').value) / 100;
+  const N          = parseInt(document.getElementById('sim-n').value) || 2000;
+
+  let alphaA = 1, betaA = 1;
+  let alphaB = 1, betaB = 1;
+
+  const histA = [], histB = [];
+  const checkpoints = Math.floor(N / 20);
+
+  for (let i = 1; i <= N; i++) {
+    const tA = betaSample(alphaA, betaA);
+    const tB = betaSample(alphaB, betaB);
+
+    if (tA >= tB) {
+      const reward = Math.random() < pControl ? 1 : 0;
+      if (reward) alphaA++; else betaA++;
+    } else {
+      const reward = Math.random() < pTreatment ? 1 : 0;
+      if (reward) alphaB++; else betaB++;
+    }
+
+    if (i % checkpoints === 0) {
+      histA.push(+(alphaA / (alphaA + betaA) * 100).toFixed(2));
+      histB.push(+(alphaB / (alphaB + betaB) * 100).toFixed(2));
+    }
+  }
+
+  const labels = histA.map((_, i) => Math.round((i+1) * N / histA.length));
+
+  if (simChart) simChart.destroy();
+  const ctx = document.getElementById('sim-chart');
+  simChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Control', data: histA, borderColor: '#38bdf8', backgroundColor: 'rgba(56,189,248,.08)', tension:.4, pointRadius:3 },
+        { label: 'Treatment', data: histB, borderColor: '#00e5a0', backgroundColor: 'rgba(0,229,160,.08)', tension:.4, pointRadius:3 },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ labels:{ color:'#94a3b8' }}},
+      scales:{
+        y:{ ticks:{color:'#64748b', callback:v=>v+'%'}, grid:{color:'#1e2530'}},
+        x:{ ticks:{color:'#64748b'}, grid:{display:false}, title:{display:true,text:'Users Assigned',color:'#64748b'}}
+      }
+    }
+  });
+
+  const meanA = (alphaA / (alphaA + betaA) * 100).toFixed(2);
+  const meanB = (alphaB / (alphaB + betaB) * 100).toFixed(2);
+  const winner = alphaB / (alphaB + betaB) > alphaA / (alphaA + betaA) ? 'Treatment' : 'Control';
+  const nA = alphaA + betaA - 2, nB = alphaB + betaB - 2;
+
+  const totalWeight = nA + nB;
+  document.getElementById('sim-allocation').innerHTML = `
+    <div class="prob-bar-wrap">
+      <div class="prob-bar-label"><span>Control</span><span>${Math.round(nA/totalWeight*100)}%</span></div>
+      <div class="prob-bar-track"><div class="prob-bar-fill blue" style="width:${nA/totalWeight*100}%"></div></div>
+    </div>
+    <div class="prob-bar-wrap">
+      <div class="prob-bar-label"><span>Treatment</span><span>${Math.round(nB/totalWeight*100)}%</span></div>
+      <div class="prob-bar-track"><div class="prob-bar-fill green" style="width:${nB/totalWeight*100}%"></div></div>
+    </div>
+    <div style="font-size:11px;color:var(--text-mute);margin-top:8px;font-family:var(--mono);">Thompson routed ${Math.round(nB/totalWeight*100)}% to ${winner}</div>`;
+
+  document.getElementById('sim-posteriors').innerHTML = `
+    ${statRow('Control posterior mean', meanA + '%', '')}
+    ${statRow('Treatment posterior mean', meanB + '%', '')}
+    ${statRow('True Control CVR', (pControl*100).toFixed(1)+'%', '')}
+    ${statRow('True Treatment CVR', (pTreatment*100).toFixed(1)+'%', '')}
+    ${statRow('True Lift', ((pTreatment-pControl)*100).toFixed(1)+'%', pTreatment > pControl ? 'green':'red')}`;
+
+  document.getElementById('sim-decision').innerHTML = `
+    <div style="text-align:center;padding:20px;">
+      <div style="font-size:32px;margin-bottom:8px;">${winner === 'Treatment' ? '🚀':'✅'}</div>
+      <div style="font-weight:700;font-size:16px;margin-bottom:6px;">${winner} Wins</div>
+      <div style="font-size:12px;color:var(--text-dim)">Thompson sampling naturally allocated more traffic to the better-performing arm, reducing regret.</div>
+    </div>`;
+
+  document.getElementById('sim-results').style.display = 'grid';
+  toast('Simulation complete! 🎲', 'success');
+}
+
+// ══════════════════════════════════════════════════════════
+// Toasts
+// ══════════════════════════════════════════════════════════
+function toast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span>${{success:'✅',error:'❌',info:'ℹ️'}[type]||'ℹ️'}</span><span>${msg}</span>`;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => { el.style.opacity='0'; el.style.transform='translateX(20px)'; el.style.transition='all .3s'; setTimeout(()=>el.remove(),300); }, 3000);
+}
+
+// ══════════════════════════════════════════════════════════
+// Init
+// ══════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  loadOverview();
+  document.getElementById('create-modal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeCreateModal();
+  });
+});
+</script>
+</body>
+</html>
